@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ru" data-version="v5.0">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Калькулятор стоимости услуг — iOS‑style</title>
+  <style>
+    /* ===== Тема и типографика (единая иерархия) ===== */
+    :root{
+      --bg:#f5f6f7;--card:#ffffff;--muted-bg:#f1f5f9;--text:#0f172a;--muted:#5b6472;
+      --border:rgba(15,23,42,.08);--ring:rgba(0,0,0,.08);
+      --accent:#0ea5e9;--plus:#ef4444;--minus:#10b981;--sticky:#ffffffee;
+      --fs-h1:28px;--fs-h2:20px;--fs-body:16px;--fs-caption:12px;
+      --fw-regular:500;--fw-bold:700;--fw-semi:600;
+      --radius-xl:24px;--radius-lg:18px;--radius-md:14px;
+    }
+    *{box-sizing:border-box}
+    html{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+    body{margin:0;background:var(--bg);color:var(--text)}
+
+    /* ===== Контейнер и сетка ===== */
+    .container{max-width:1200px;margin:0 auto;padding:24px 24px 180px}
+    .header{text-align:center;margin:8px 0 20px}
+    .title{font-weight:var(--fw-bold);font-size:var(--fs-h1);letter-spacing:-.015em;margin:0}
+    .sub{margin:6px 0 0;color:#475569;font-size:14px}
+
+    /* Двухколоночная сетка: фикс «уезжающей» правой колонки */
+    .grid{display:grid;gap:24px;grid-template-columns:1fr}
+    .grid>*{min-width:0}
+    @media(min-width:1100px){.grid{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}}
+
+    /* Карточки */
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:0 1px 2px rgba(0,0,0,.03);min-width:0}
+    .p{padding:28px}
+    .section-title{font-size:var(--fs-h2);font-weight:var(--fw-semi);margin:0 0 16px}
+    .section-sub{margin:-10px 0 16px;color:var(--muted);font-size:13px}
+
+    /* Поля и элементы ввода */
+    .fields{display:grid;gap:18px}
+    @media(min-width:768px){.fields.cols-2{grid-template-columns:repeat(2,1fr)}.fields.cols-3{grid-template-columns:repeat(3,1fr)}.fields.cols-4{grid-template-columns:repeat(4,1fr)}}
+    label{display:block;font-size:13px;color:#475569;margin:0 0 8px}
+    .input,select{width:100%;padding:12px 14px;border-radius:var(--radius-md);border:1px solid var(--border);background:#fff;font-size:var(--fs-body);outline:none}
+    .input:focus,select:focus{box-shadow:0 0 0 8px var(--ring)}
+    .row{display:flex;gap:12px;align-items:center;min-width:0}
+
+    /* ===== Отдельный блок выбора направления (как просили) ===== */
+    .segwrap{background:var(--card)}
+    .segbar{display:flex;gap:8px;overflow:auto;padding:10px;background:var(--muted-bg);border-radius:var(--radius-md);scroll-snap-type:x proximity}
+    .segbtn{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;padding:10px 14px;border-radius:999px;border:1px solid var(--border);background:transparent;white-space:nowrap;cursor:pointer;scroll-snap-align:center}
+    .segbtn[aria-pressed="true"]{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.06);font-weight:var(--fw-semi)}
+    .segbtn .ic{display:inline-flex;width:18px;height:18px}
+    .segbtn .ic svg{width:18px;height:18px;display:block}
+
+    /* Селекты для мобилы */
+    #selectorsRow{display:none}
+    @media(max-width:640px){#selectorsRow{display:grid}}
+
+    /* Подкатегории плиткой */
+    .subgrid{margin-top:14px;display:grid;gap:12px}
+    @media(min-width:640px){.subgrid{grid-template-columns:repeat(2,1fr)}}
+    @media(min-width:960px){.subgrid{grid-template-columns:repeat(3,1fr)}}
+    .subcard{position:relative;border:1px solid var(--border);background:rgba(255,255,255,.9);backdrop-filter:saturate(180%) blur(10px);border-radius:var(--radius-lg);padding:14px 14px 12px;cursor:pointer;transition:.2s}
+    .subcard:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.06)}
+    .subcard h4{margin:0 0 8px;font-size:15px;font-weight:var(--fw-semi);overflow-wrap:anywhere}
+    .price-line{font-size:13px;color:#334155;overflow-wrap:anywhere}
+    .badge{position:absolute;right:10px;top:10px;font-size:11px;color:#0f172a;background:#e2e8f0;border:1px solid var(--border);padding:2px 8px;border-radius:999px}
+
+    /* Чипы/свитчеры/кнопки */
+    .chipset{display:flex;gap:8px;flex-wrap:wrap;background:var(--muted-bg);padding:6px;border-radius:var(--radius-md)}
+    .chip{flex:1 1 0;min-width:0;padding:10px 12px;border-radius:10px;font-size:14px;border:none;background:transparent;cursor:pointer}
+    .chip.active{background:#fff;box-shadow:0 1px 1px rgba(0,0,0,.05);font-weight:var(--fw-semi)}
+    .switch{width:64px;height:34px;border-radius:999px;border:1px solid var(--border);padding:4px;display:flex;align-items:center;transition:.2s;background:#e2e8f0;cursor:pointer}
+    .switch.active{background:#10b981}
+    .knob{width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transform:translateX(0);transition:.2s}
+    .switch.active .knob{transform:translateX(30px)}
+
+    .btn{padding:10px 14px;border-radius:var(--radius-md);border:1px solid var(--border);background:#fff;font-size:14px;cursor:pointer}
+    .btn:hover{box-shadow:0 1px 4px rgba(0,0,0,.07)}
+    .muted{color:var(--muted);font-size:var(--fs-caption);line-height:1.35}
+
+    /* Итог и разбор */
+    .result .price{font-size:34px;font-weight:var(--fw-bold);line-height:1.1}
+    .mini{display:grid;gap:10px;margin-top:12px}
+    .mini .item{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:#fff}
+    .mini .base{background:#f8fafc}
+    .tag{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:#334155;background:#f8fafc}
+    .amt{font-variant-numeric:tabular-nums}
+    .amt.plus{color:var(--plus)}
+    .amt.mult{color:var(--accent)}
+    .amt.minus{color:var(--minus)}
+
+    /* История: более нейтральная, явная иерархия (последний — жирный) */
+    .history-list{display:grid;gap:8px}
+    .history-item{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:#f8fafc}
+    .history-meta{color:var(--muted);font-size:12px}
+    .badge-order{background:#e2e8f0;border:1px solid var(--border);border-radius:8px;padding:2px 6px;font-size:11px;color:#0f172a}
+
+    /* Диаграмма */
+    .chart-wrap{margin-top:14px;border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff}
+    .chart-legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+    .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#334155}
+    .legend-dot{width:10px;height:10px;border-radius:3px}
+
+    /* Sticky footer */
+    .stickybar{position:fixed;left:0;right:0;bottom:0;background:var(--sticky);backdrop-filter:saturate(180%) blur(8px);border-top:1px solid var(--border);padding:10px 16px}
+    .stickybar .wrap{max-width:1200px;margin:0 auto;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .footerTotal{font-size:20px;font-weight:var(--fw-bold)}
+
+    /* Прочее */
+    .hidden{display:none}
+    svg,img{max-width:100%}
+    input[type=range]{width:100%}
+
+    /* Модал/тост */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;align-items:center;justify-content:center;padding:20px}
+    .modal{background:#fff;border-radius:16px;border:1px solid var(--border);max-width:560px;width:100%;padding:20px}
+    .modal h3{margin:0 0 8px;font-size:18px}
+    .modal textarea{width:100%;height:140px;border:1px solid var(--border);border-radius:12px;padding:12px;font-size:14px}
+    .toast{position:fixed;right:16px;bottom:90px;background:#111827;color:#fff;padding:10px 14px;border-radius:12px;opacity:0;transform:translateY(10px);transition:.25s}
+    .toast.show{opacity:1;transform:translateY(0)}
+
+    /* Печать */
+    @media print{.stickybar,.btn,#shareBtn,#copyBtn,#copyBtn2,#copyDetailsBtn,#copyDetailsBtn2,#resetBtn,#testBtn{display:none!important}body{background:#fff}.container{padding:12mm}.card{box-shadow:none}.header{text-align:left}.title{font-size:22pt}.section-title{font-size:14pt}}
+
+    /* Мобайл */
+    @media(max-width:640px){
+      .container{padding:16px 12px 180px}
+      .title{font-size:24px}
+      .p{padding:16px}
+      .section-title{font-size:18px}
+      .result .price{font-size:28px}
+      .segbar{padding:6px}
+      .segbtn{padding:8px 12px}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1 class="title">Калькулятор стоимости услуг</h1>
+      <p class="sub">Светлая тема · iOS‑style · офлайн</p>
+    </header>
+
+    <!-- ===== Отдельный блок выбора направления ===== -->
+    <section class="card p segwrap">
+      <h2 class="section-title">Выбор направления</h2>
+      <p class="section-sub">Прокрутите список или выберите из выпадающих списков на мобильных.</p>
+      <div id="segbar" class="segbar" role="tablist" aria-label="Направления"></div>
+      <div class="fields cols-2" id="selectorsRow" style="margin-top:12px">
+        <div>
+          <label>Категория</label>
+          <select id="categorySelect"></select>
+        </div>
+        <div>
+          <label>Подкатегория</label>
+          <select id="subcatSelect"></select>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid">
+      <!-- Левая колонка: подкатегории и ввод -->
+      <section class="card p">
+        <h2 class="section-title">Подкатегории и базовые параметры</h2>
+        <div id="subgrid" class="subgrid"></div>
+        <div class="fields cols-2" style="margin-top:18px">
+          <div>
+            <label>Базовая цена (₽)</label>
+            <div class="row"><span class="muted">₽</span><input id="base" class="input" type="number" value="8000"></div>
+            <div class="muted">Подставляется из выбранной подкатегории; можно изменить вручную.</div>
+          </div>
+          <div>
+            <label>Количество (ед.)</label>
+            <input id="qty" class="input" type="number" value="1" min="1">
+            <div class="muted">Например, число слайдов/макетов. Итог = база × кол-во.</div>
+          </div>
+        </div>
+        <select id="service" class="hidden" aria-hidden="true">
+          <option>Логотип</option>
+          <option>Фирменный стиль</option>
+          <option>Полиграфия</option>
+          <option>Наружная реклама</option>
+          <option>Презентация</option>
+          <option>Анимация / Моушн</option>
+          <option>3д визуализация</option>
+          <option>Программирование</option>
+          <option>Кастомизация</option>
+        </select>
+      </section>
+
+      <!-- Правая колонка: итог и визуализация -->
+      <aside class="card p result">
+        <h2 class="section-title">Итог</h2>
+        <div class="card p" style="padding:16px;margin:-4px 0 8px;border-radius:16px">
+          <div class="muted" id="yearLabel">Текущий год</div>
+          <div class="price" id="totalLabel">— ₽</div>
+          <div class="muted" id="tags">Сложность: — · Срочность: —</div>
+          <div class="muted" id="tagCat">—</div>
+        </div>
+        <div class="mini" id="breakdown"></div>
+        <div class="chart-wrap">
+          <svg id="chart" width="100%" height="26" viewBox="0 0 1000 26" preserveAspectRatio="none"></svg>
+          <div class="chart-legend" id="legend"></div>
+        </div>
+        <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:12px">
+          <button class="btn" onclick="window.print()">Печать / PDF</button>
+          <button class="btn" id="copyBtn">Скопировать сумму</button>
+          <button class="btn" id="copyDetailsBtn">Копировать разбор</button>
+          <button class="btn" id="shareBtn">Поделиться ссылкой</button>
+        </div>
+      </aside>
+    </div>
+
+    <!-- ===== Сложность/срочность/условия + Инфляция внутри этого блока ===== -->
+    <section class="card p" style="margin-top:24px">
+      <h2 class="section-title">Сложность, срочность и условия</h2>
+
+      <div class="fields cols-3">
+        <div>
+          <label>Сложность</label>
+          <div class="chipset" id="complexity">
+            <button class="chip" data-k="1">Легкий</button>
+            <button class="chip active" data-k="1.5">Средний</button>
+            <button class="chip" data-k="2.5">Сложный</button>
+          </div>
+        </div>
+        <div>
+          <label>Срочность</label>
+          <div class="chipset" id="urgency">
+            <button class="chip active" data-k="1">Стандартно</button>
+            <button class="chip" data-k="1.5">Быстро</button>
+            <button class="chip" data-k="2.5">Срочно</button>
+          </div>
+        </div>
+        <div>
+          <label>Маржа <span class="muted">(%)</span></label>
+          <input id="margin" class="input" type="range" min="0" max="60" step="1" value="20">
+          <div class="muted">Текущее значение: <span id="marginVal">20%</span></div>
+        </div>
+      </div>
+
+      <div class="fields cols-3" style="margin-top:18px">
+        <div>
+          <label>Скидка <span class="muted">(%)</span></label>
+          <input id="discount" class="input" type="range" min="0" max="50" step="1" value="0">
+          <div class="muted">Текущее значение: <span id="discountVal">0%</span></div>
+        </div>
+        <div>
+          <label>Передача прав</label>
+          <div id="ip" class="switch" role="switch" aria-checked="false" tabindex="0"><div class="knob"></div></div>
+          <div class="muted">+10% за передачу прав</div>
+        </div>
+        <div>
+          <label>NDA / риски</label>
+          <div id="nda" class="switch" role="switch" aria-checked="false" tabindex="0"><div class="knob"></div></div>
+          <div class="muted">+5% за конфиденциальность</div>
+        </div>
+      </div>
+
+      <div class="fields cols-3" style="margin-top:18px">
+        <div>
+          <label>Выходные</label>
+          <div id="weekend" class="switch" role="switch" aria-checked="false" tabindex="0"><div class="knob"></div></div>
+          <div class="muted">+10% за работу вне графика</div>
+        </div>
+        <div>
+          <label style="visibility:hidden">—</label>
+          <button class="btn" id="resetBtn">Сбросить всё</button>
+          <button class="btn" id="testBtn">Тесты</button>
+        </div>
+      </div>
+
+      <!-- Встроенный блок индексации -->
+      <div style="margin-top:18px;border-top:1px dashed var(--border);padding-top:14px">
+        <div class="row" style="justify-content:space-between;margin-bottom:10px">
+          <h3 class="section-title" style="font-size:18px;margin:0">Учёт инфляции</h3>
+          <div id="inflationSwitch" class="switch" role="switch" aria-checked="false" tabindex="0"><div class="knob"></div></div>
+        </div>
+        <div id="inflationPanel" class="hidden">
+          <div class="fields cols-4">
+            <div>
+              <label>Базовый год</label>
+              <input id="fromYear" class="input" type="number" value="2022" min="2000" max="2100">
+            </div>
+            <div>
+              <label>Целевой год</label>
+              <input id="toYear" class="input" type="number" value="2025" min="2000" max="2100">
+            </div>
+            <div>
+              <label>Совокупный индекс</label>
+              <div class="input" id="indexLabel" style="display:flex;align-items:center;gap:6px">—%</div>
+            </div>
+            <div>
+              <label>Правило округления</label>
+              <select id="roundRule">
+                <option value="50">К ближайшим 50 ₽</option>
+                <option value="100">К ближайшим 100 ₽</option>
+                <option value=".90">К *.90</option>
+                <option value=".99">К *.99</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div id="inflationOffNote" class="card p" style="padding:12px;border-radius:16px;background:#fff;">Индексация отключена. Включите тумблер, чтобы открыть поля и расчёт индекса.</div>
+      </div>
+    </section>
+
+    <!-- История -->
+    <section class="card p" style="margin-top:24px">
+      <h2 class="section-title">История последних расчётов</h2>
+      <p class="section-sub">Новые записи сверху · хранится 5 последних</p>
+      <div class="history-list" id="history"></div>
+    </section>
+
+    <footer class="muted" style="text-align:center;margin-top:28px">© <span id="year"></span> Pricing Calculator · iOS‑style</footer>
+  </div>
+
+  <!-- Sticky footer -->
+  <div class="stickybar" id="sticky">
+    <div class="wrap">
+      <div class="footerTotal">Итого: <span id="stickyTotal">— ₽</span></div>
+      <div class="row">
+        <button class="btn" id="copyBtn2">Копировать сумму</button>
+        <button class="btn" id="copyDetailsBtn2">Копировать разбор</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal & Toast -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h3 id="modalTitle"></h3>
+      <div id="modalBody"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="modalClose">Закрыть</button></div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    /* Иконки категорий */
+    const ICONS={
+      "Логотип":()=>`<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'><path d='M12 3l7 4v10l-7 4-7-4V7l7-4Z'/><path d='M12 7v10'/></svg>`,
+      "Фирменный стиль":()=>`<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'><rect x='3' y='4' width='18' height='12' rx='2'/><path d='M7 20h10'/></svg>`,
+      "Полиграфия":()=>`<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'><rect x='4' y='3' width='16' height='18' rx='2'/><path d='M8 7h8M8 11h8M8 15h5'/></svg>`,
+      "Наружная реклама":()=>`<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'><rect x='3' y='3' width='18' height='8' rx='1.5'/><path d='M7 11v10M17 11v10'/></svg>`,
+      "Презентация":()=>`<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'><rect x='3' y='4' width='18' height='12' rx='2'/><path d='M4 16l4-4 3 3 5-5 4 4'/></svg>`,
+      "Анимация / Моушн":()=>`<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'><circle cx='6' cy='12' r='2'/><circle cx='12' cy='12' r='2'/><circle cx='18' cy='12' r='2'/></svg>`,
+      "3д визуализация":()=>`<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'><path d='M12 3l8 4-8 4-8-4 8-4Z'/><path d='M4 7v10l8 4 8-4V7'/></svg>`,
+      "Программирование":()=>`<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'><path d='M8 16l-3 3 3 3'/><path d='M16 16l3 3-3 3'/><path d='M14 3l-4 18'/></svg>`,
+      "Кастомизация":()=>`<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6'><circle cx='8' cy='8' r='3'/><path d='M5 16h14M12 11l7 7'/></svg>`
+    };
+
+    /* Данные подкатегорий */
+    const SUBS={
+      "Логотип":[{name:"Мини-логотип",price:5000},{name:"Базовый логотип",price:8000, popular:true},{name:"Премиум-логотип",price:15000},{name:"Айдентика для стартапа",price:20000},{name:"Редизайн логотипа",price:7000}],
+      "Фирменный стиль":[{name:"Мини-пакет (визитка, бланк)",price:15000},{name:"Средний пакет (логотип + 3–4 носителя)",price:30000, popular:true},{name:"Полный брендбук",price:50000},{name:"Гайдлайны по стилю",price:20000},{name:"Паттерны/графические элементы",price:10000},{name:"Маскот/иконка",price:12000}],
+      "Полиграфия":[{name:"Визитка",price:1500, popular:true},{name:"Листовка / флаер",price:2500},{name:"Плакат / афиша",price:3000},{name:"Брошюра (до 8 стр.)",price:8000},{name:"Каталог (до 32 стр.)",price:12000},{name:"Журнал (многостраничный)",price:25000, from:true},{name:"Меню",price:6000},{name:"Календарь",price:7000},{name:"Папка с логотипом",price:4000},{name:"Упаковка (коробка/пакет/этикетка)",price:5000, from:true}],
+      "Наружная реклама":[{name:"Баннер",price:5000},{name:"Билборд",price:10000, popular:true},{name:"Сити-формат",price:8000},{name:"Вывеска",price:12000},{name:"Оформление фасада",price:25000},{name:"Навигация (указатели)",price:10000, from:true},{name:"Брендирование транспорта",price:20000, from:true}],
+      "Презентация":[{name:"Один слайд",price:800, popular:true},{name:"Шаблон презентации",price:10000},{name:"Корпоративная (10–15 слайдов)",price:15000},{name:"Большая (30+ слайдов)",price:30000, from:true},{name:"Инвест‑питч",price:25000}],
+      "Анимация / Моушн":[{name:"Логотип-анимация",price:5000},{name:"Рекламный ролик (до 30 сек)",price:20000, popular:true},{name:"Explainer‑видео (1–2 мин)",price:35000},{name:"UI‑motion",price:15000},{name:"Соцсети‑контент",price:8000},{name:"Инфографика‑анимация",price:12000},{name:"Титры",price:6000}],
+      "3д визуализация":[{name:"Предметная (продукт)",price:5000},{name:"Интерьер (комната)",price:15000, popular:true},{name:"Экстерьер (здание)",price:20000},{name:"Архитектурный комплекс",price:40000, from:true},{name:"3D‑анимация (turntable)",price:30000},{name:"3D‑планировки для ЖК",price:18000},{name:"AR‑модель продукта",price:25000}],
+      "Программирование":[{name:"Лэндинг",price:25000, popular:true},{name:"Корпоративный сайт",price:60000},{name:"Интернет‑магазин",price:100000},{name:"HTML‑email",price:5000},{name:"Мобильное приложение (MVP)",price:150000, from:true},{name:"Кастомные скрипты/интеграции",price:2000, from:true},{name:"Доработка CMS",price:1800, from:true}],
+      "Кастомизация":[{name:"Доработка макета",price:3000},{name:"Настройка шаблона сайта",price:10000, popular:true},{name:"Адаптация под мобильные",price:8000},{name:"Prepress (к печати)",price:2500},{name:"Локализация",price:5000},{name:"Ретушь/цветокоррекция",price:2000}]
+    };
+    const BASES={"Логотип":8000,"Презентация":800};
+    const inflation={2022:11.9,2023:7.4,2024:8.0,2025:6.0};
+
+    // Утилиты
+    const $=s=>document.querySelector(s); const $$=s=>Array.from(document.querySelectorAll(s));
+    const nf=new Intl.NumberFormat('ru-RU'); const fmt=n=>nf.format(Math.round(n));
+    const roundTo=(n,rule)=>{ if(rule==='50') return Math.round(n/50)*50; if(rule==='100') return Math.round(n/100)*100; if(rule==='.90'||rule==='.99'){ const base=Math.floor(n/100)*100; const tail=rule==='.90'?90:99; const cand1=base+tail, cand2=base+100+tail; return (n-cand1<=cand2-n)?cand1:cand2;} return Math.round(n)};
+    const compoundedIndex=(map,years)=>years.reduce((a,y)=>a*(1+((+map[y]||0)/100)),1);
+
+    // Хранилище состояния
+    const STATE_KEY='rub_calc_state_v5'; const HISTORY_KEY='rub_calc_hist_v3';
+    const state={category:'Логотип', subcat:'', service:'Логотип', base:BASES['Логотип']||8000, qty:1, complexityK:1.5, urgencyK:1, margin:20, discount:0, ip:false, nda:false, weekend:false, useInflation:false, fromYear:2022, toYear:new Date().getFullYear(), roundRule:'50'};
+
+    // Служебные UI
+    function showToast(t){const el=$('#toast'); el.textContent=t; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),1600)}
+    function openModal(title,html){$('#modalTitle').textContent=title; const b=$('#modalBody'); b.innerHTML=''; if(typeof html==='string') b.innerHTML=html; else b.appendChild(html); $('#overlay').style.display='flex'}
+    function closeModal(){$('#overlay').style.display='none'}
+    function textAreaWith(text){const ta=document.createElement('textarea'); ta.value=text; ta.addEventListener('focus',()=>ta.select()); ta.style.width='100%'; ta.style.height='140px'; return ta}
+
+    // Безопасное копирование (Clipboard API → fallback → модал)
+    async function safeCopy(text){
+      try{ if(navigator.clipboard&&window.isSecureContext){ await navigator.clipboard.writeText(text); showToast('Скопировано'); return true } }catch(e){}
+      try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); const ok=document.execCommand('copy'); document.body.removeChild(ta); if(ok){showToast('Скопировано'); return true} }catch(e){}
+      const ta=textAreaWith(text); openModal('Скопируйте вручную',ta); ta.focus(); return false
+    }
+
+    // State
+    function saveState(){localStorage.setItem(STATE_KEY,JSON.stringify(state))}
+    function loadState(){
+      const url=new URL(location.href);
+      if(url.search){ try{ const p=Object.fromEntries(url.searchParams.entries()); Object.assign(state, JSON.parse(decodeURIComponent(p.s||'{}')));}catch{} }
+      const ls=localStorage.getItem(STATE_KEY); if(ls && !url.search) try{ Object.assign(state, JSON.parse(ls)); }catch{}
+      if(!SUBS[state.category]) state.category='Логотип';
+      if(!state.base) state.base = BASES[state.category] || 0;
+    }
+
+    // История
+    function pushHistory(total){
+      try{
+        const now=new Date();
+        const rec={ts:now.toISOString(),total,category:state.category,subcat:state.subcat,qty:state.qty,base:state.base,complexityK:state.complexityK,urgencyK:state.urgencyK,margin:state.margin,discount:state.discount,ip:state.ip,nda:state.nda,weekend:state.weekend,useInflation:state.useInflation,fromYear:state.fromYear,toYear:state.toYear,roundRule:state.roundRule};
+        const list=JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]');
+        list.unshift(rec); while(list.length>5) list.pop();
+        localStorage.setItem(HISTORY_KEY,JSON.stringify(list));
+        renderHistory()
+      }catch{}
+    }
+    function renderHistory(){
+      const box=$('#history'); const list=JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]'); box.innerHTML='';
+      list.forEach((r,i)=>{
+        const d=new Date(r.ts);
+        const el=document.createElement('div'); el.className='history-item';
+        const left=document.createElement('div');
+        const title=i===0? `<strong>${fmt(r.total)} ₽</strong> <span class="badge-order">последний</span>` : `<strong style="font-weight:600">${fmt(r.total)} ₽</strong>`;
+        left.innerHTML=`<div>${title}</div><div class="history-meta">${d.toLocaleDateString('ru-RU')} · ${r.category}${r.subcat? ' — '+r.subcat:''} × ${r.qty}</div>`;
+        const right=document.createElement('div');
+        const btn=document.createElement('button'); btn.className='btn'; btn.textContent='Загрузить';
+        btn.addEventListener('click',()=>{Object.assign(state,{...state,...r}); saveState(); syncUIFromState(); compute(true)});
+        right.appendChild(btn); el.appendChild(left); el.appendChild(right); box.appendChild(el)
+      })
+    }
+
+    // Категории
+    function renderCategories(){
+      const bar=$('#segbar'); bar.innerHTML='';
+      Object.keys(SUBS).forEach(cat=>{
+        const b=document.createElement('button'); b.className='segbtn'; b.setAttribute('role','tab');
+        b.setAttribute('aria-pressed', String(cat===state.category));
+        b.innerHTML=`<span class='ic'>${(ICONS[cat]?ICONS[cat]():ICONS['Логотип']())}</span><span>${cat}</span>`;
+        b.addEventListener('click',()=>{
+          state.category=cat; state.subcat='';
+          b.scrollIntoView({inline:'center',behavior:'smooth'});
+          renderCategories(); renderSubcats(); renderSubcatSelect(); applyDefaultBase(); compute(); saveState()
+        });
+        bar.appendChild(b);
+      });
+    }
+
+    // Селекты (мобайл)
+    function renderCategorySelect(){ const sel=$('#categorySelect'); sel.innerHTML=''; Object.keys(SUBS).forEach(cat=>{ const o=document.createElement('option'); o.value=cat; o.textContent=cat; if(cat===state.category) o.selected=true; sel.appendChild(o); }); }
+    function renderSubcatSelect(){ const sel=$('#subcatSelect'); sel.innerHTML=''; const empty=document.createElement('option'); empty.value=''; empty.textContent='— выберите подкатегорию —'; sel.appendChild(empty); (SUBS[state.category]||[]).forEach(it=>{ const o=document.createElement('option'); o.value=it.name; o.textContent=it.name; if(it.name===state.subcat) o.selected=true; sel.appendChild(o); }); }
+
+    function applyDefaultBase(){ const baseDefault = BASES[state.category] || (SUBS[state.category]?.[0]?.price || 0); if(!state.subcat){ state.base = baseDefault; $('#base').value=state.base; } $('#service').value=state.category; }
+    function applySubcat(item){ state.subcat=item.name; state.base=item.price||0; $('#base').value=state.base; compute(true); saveState(); highlightPickedCard(); showToast('Подкатегория выбрана'); renderSubcatSelect(); }
+    function highlightPickedCard(){ $$('#subgrid .subcard').forEach(el=>{ el.style.outline = (el.dataset.name===state.subcat ? '2px solid var(--accent)' : '1px solid var(--border)'); el.style.boxShadow = (el.dataset.name===state.subcat ? '0 0 0 3px rgba(14,165,233,.15)' : 'none'); }); }
+    function renderSubcats(){ const grid=$('#subgrid'); grid.innerHTML=''; (SUBS[state.category]||[]).forEach(it=>{ const card=document.createElement('div'); card.className='subcard'; card.dataset.name=it.name; card.addEventListener('click',()=>applySubcat(it)); const h=document.createElement('h4'); h.textContent=it.name; card.appendChild(h); const p=document.createElement('div'); p.className='price-line'; p.textContent=(it.from? 'от ':'')+fmt(it.price)+' ₽'; card.appendChild(p); if(it.popular){ const badge=document.createElement('div'); badge.className='badge'; badge.textContent='Популярно'; card.appendChild(badge); } grid.appendChild(card); }); highlightPickedCard(); }
+
+    // Синхронизация UI
+    function syncUIFromState(){
+      renderCategories(); renderCategorySelect(); renderSubcats(); renderSubcatSelect();
+      $('#base').value=state.base; $('#qty').value=state.qty;
+      setActiveByK('#complexity',state.complexityK); setActiveByK('#urgency',state.urgencyK);
+      setSwitch('#ip',state.ip); setSwitch('#nda',state.nda); setSwitch('#weekend',state.weekend);
+      $('#margin').value=state.margin; $('#marginVal').textContent=state.margin+'%';
+      $('#discount').value=state.discount; $('#discountVal').textContent=state.discount+'%';
+      $('#fromYear').value=state.fromYear; $('#toYear').value=state.toYear; $('#roundRule').value=state.roundRule;
+      const sw=$('#inflationSwitch'); sw.classList.toggle('active',!!state.useInflation);
+      $('#inflationPanel').classList.toggle('hidden',!state.useInflation);
+      $('#inflationOffNote').classList.toggle('hidden',state.useInflation);
+    }
+
+    // Привязка событий
+    function bind(){
+      $('#year').textContent=new Date().getFullYear();
+      $('#base').addEventListener('input',e=>{state.base=+e.target.value||0; compute(); saveState()});
+      $('#qty').addEventListener('input',e=>{state.qty=Math.max(1,+e.target.value||1); compute(); saveState()});
+      bindSegment('#complexity','complexityK'); bindSegment('#urgency','urgencyK');
+      bindSwitch('#ip','ip'); bindSwitch('#nda','nda'); bindSwitch('#weekend','weekend');
+      bindInflationToggle();
+      $('#margin').addEventListener('input',e=>{state.margin=+e.target.value||0; $('#marginVal').textContent=state.margin+'%'; compute(); saveState()});
+      $('#discount').addEventListener('input',e=>{state.discount=+e.target.value||0; $('#discountVal').textContent=state.discount+'%'; compute(); saveState()});
+      $('#fromYear').addEventListener('input',e=>{state.fromYear=+e.target.value||state.fromYear; if(state.fromYear>state.toYear) state.toYear=state.fromYear; $('#toYear').value=state.toYear; compute(); saveState()});
+      $('#toYear').addEventListener('input',e=>{state.toYear=+e.target.value||state.toYear; if(state.toYear<state.fromYear) state.fromYear=state.toYear; $('#fromYear').value=state.fromYear; compute(); saveState()});
+      $('#roundRule').addEventListener('change',e=>{state.roundRule=e.target.value; compute(); saveState()});
+      $('#copyBtn').addEventListener('click',()=>copyTotal()); $('#copyBtn2').addEventListener('click',()=>copyTotal());
+      $('#copyDetailsBtn').addEventListener('click',()=>copyDetails()); $('#copyDetailsBtn2').addEventListener('click',()=>copyDetails());
+      $('#shareBtn').addEventListener('click',()=>shareLink());
+      $('#resetBtn').addEventListener('click',resetAll);
+      $('#modalClose').addEventListener('click',closeModal); $('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay') closeModal()});
+      $('#testBtn').addEventListener('click',runTests);
+      $('#categorySelect').addEventListener('change',e=>{ state.category=e.target.value; state.subcat=''; renderCategories(); renderSubcats(); renderSubcatSelect(); applyDefaultBase(); compute(); saveState(); });
+      $('#subcatSelect').addEventListener('change',e=>{ const name=e.target.value; const it=(SUBS[state.category]||[]).find(x=>x.name===name); if(it) applySubcat(it); else{ state.subcat=''; applyDefaultBase(); compute(); saveState(); highlightPickedCard(); } });
+    }
+
+    // Хелперы
+    function bindSegment(container,key){const el=$(container); el.addEventListener('click',e=>{const b=e.target.closest('button'); if(!b) return; el.querySelectorAll('.chip').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state[key]=+b.dataset.k; compute(); saveState()})}
+    function setActiveByK(container,k){const el=$(container); el.querySelectorAll('.chip').forEach(x=>x.classList.remove('active')); const b=$$(container+' .chip').find(x=>+x.dataset.k===k); if(b) b.classList.add('active')}
+    function bindSwitch(id,key){const el=$(id); function t(){el.classList.toggle('active'); state[key]=el.classList.contains('active'); compute(); saveState()} el.addEventListener('click',t); el.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault(); t()}})}
+    function setSwitch(id,val){$(id).classList.toggle('active',!!val)}
+    function bindInflationToggle(){const sw=$('#inflationSwitch'); function sync(){const on=sw.classList.contains('active'); $('#inflationPanel').classList.toggle('hidden',!on); $('#inflationOffNote').classList.toggle('hidden',on); state.useInflation=on; compute(); saveState()} sw.addEventListener('click',()=>{sw.classList.toggle('active'); sync()}); sw.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault(); sw.classList.toggle('active'); sync()}}); sw.classList.toggle('active',!!state.useInflation); sync()}
+
+    // Расчёт
+    function compute(pushHist=false){
+      const years=[]; for(let y=state.fromYear+1;y<=state.toYear;y++) years.push(y);
+      const idx=state.useInflation?compoundedIndex(inflation,years):1; $('#indexLabel').textContent=((idx-1)*100+100).toFixed(1)+'%';
+
+      const baseLabel = state.category + (state.subcat? ' — '+state.subcat:'');
+      const baseTotal=state.base*Math.max(1,state.qty);
+      const afterInfl=baseTotal*idx;
+      const afterComplex=afterInfl*state.complexityK;
+      const afterUrgency=afterComplex*state.urgencyK;
+      const plusPct=(state.margin+(state.ip?10:0)+(state.nda?5:0)+(state.weekend?10:0))/100;
+      const afterSurch=afterUrgency*(1+plusPct);
+      const afterDiscount=afterSurch*(1-state.discount/100);
+      const totalRaw=afterDiscount;
+      const total=roundTo(totalRaw,state.roundRule);
+
+      const items=[];
+      items.push({label:`База ${state.qty>1?`× ${state.qty}`:''}`,tag:baseLabel,amt:baseTotal,kind:'base',color:'#cbd5e1',orig:0});
+      if(state.useInflation&&idx!==1){items.push({label:'Индексация',tag:`× ${idx.toFixed(3)}`,delta:afterInfl-baseTotal,kind:'mult',color:'#7dd3fc',orig:1})}
+      if(state.complexityK!==1){items.push({label:'Сложность',tag:`× ${state.complexityK}`,delta:afterComplex-afterInfl,kind:'mult',color:'#60a5fa',orig:2})}
+      if(state.urgencyK!==1){items.push({label:'Срочность',tag:`× ${state.urgencyK}`,delta:afterUrgency-afterComplex,kind:'mult',color:'#93c5fd',orig:3})}
+      if(plusPct>0){items.push({label:'Надбавки',tag:`+ ${(plusPct*100).toFixed(0)}%`,delta:afterSurch-afterUrgency,kind:'plus',color:'#fecaca',orig:4})}
+      if(state.discount>0){items.push({label:'Скидка',tag:`- ${state.discount}%`,delta:afterDiscount-afterSurch,kind:'minus',color:'#bbf7d0',orig:5})}
+      if(total!==Math.round(totalRaw)){
+        items.push({label:'Округление',tag:document.querySelector('#roundRule').selectedOptions[0].textContent,delta:total-Math.round(totalRaw),kind:(total-Math.round(totalRaw))>=0?'plus':'minus',color:'#fde68a',orig:6})
+      }
+
+      renderBreakdown(items); renderChart(items);
+      $('#totalLabel').textContent=fmt(total)+' ₽';
+      $('#stickyTotal').textContent=fmt(total)+' ₽';
+      $('#tags').textContent=`Сложность: ${labelFor('#complexity',state.complexityK)} · Срочность: ${labelFor('#urgency',state.urgencyK)}`;
+      $('#tagCat').textContent=baseLabel; $('#yearLabel').textContent='Текущий год';
+
+      if(pushHist) pushHistory(Math.round(total)); else {clearTimeout(window.__hist_to__); window.__hist_to__=setTimeout(()=>pushHistory(Math.round(total)),400);}
+    }
+
+    // Разбор и диаграмма
+    function renderBreakdown(items){
+      const bd=$('#breakdown'); bd.innerHTML='';
+      items.forEach((x)=>{
+        const el=document.createElement('div'); el.className='item '+(x.kind==='base'?'base':''); el.dataset.idx=x.orig;
+        const l=document.createElement('div'); l.innerHTML=`<div>${x.label}</div><div class=\"tag\">${x.tag}</div>`;
+        const r=document.createElement('div');
+        if(x.kind==='base') r.innerHTML=`<strong class=\"amt\">${fmt(x.amt)} ₽</strong>`;
+        else r.innerHTML=`<strong class=\"amt ${x.kind==='plus'?'plus':x.kind==='minus'?'minus':'mult'}\">${x.delta>0?'+':''}${fmt(x.delta)} ₽</strong>`;
+        el.appendChild(l); el.appendChild(r); bd.appendChild(el);
+      });
+    }
+
+    function renderChart(items){
+      const svg=$('#chart'); svg.innerHTML='';
+      const legend=$('#legend'); legend.innerHTML='';
+      const width=1000, height=26; svg.setAttribute('viewBox',`0 0 ${width} ${height}`);
+      let pos=0;
+      const segments=items.map((it)=>({label:it.label,kind:it.kind,color:it.color,val: it.kind==='base'?it.amt:Math.abs(it.delta),orig:it.orig})).filter(x=>x.val>0);
+      const sum=segments.reduce((a,b)=>a+b.val,0)||1;
+      segments.forEach((seg)=>{
+        const w=Math.max(2, Math.round((seg.val/sum)*width));
+        const r=document.createElementNS('http://www.w3.org/2000/svg','rect');
+        r.setAttribute('x',pos); r.setAttribute('y',0); r.setAttribute('width',w); r.setAttribute('height',height);
+        r.setAttribute('fill',seg.color||'#e5e7eb'); r.dataset.orig=seg.orig; r.style.cursor='pointer';
+        r.addEventListener('mouseenter',()=>highlight(seg.orig)); r.addEventListener('mouseleave',()=>highlight(null));
+        svg.appendChild(r); pos+=w;
+        const li=document.createElement('div'); li.className='legend-item'; li.innerHTML=`<span class=\"legend-dot\" style=\"background:${seg.color}\"></span>${seg.label}`;
+        li.addEventListener('mouseenter',()=>highlight(seg.orig)); li.addEventListener('mouseleave',()=>highlight(null)); legend.appendChild(li);
+      });
+      function highlight(orig){ $$('#breakdown .item').forEach((el)=>{el.style.outline=(orig!==null && +el.dataset.idx===orig? '2px solid var(--accent)':'none')}); $$('#chart rect').forEach((el)=>{el.style.opacity=(orig===null || +el.dataset.orig===orig)?1:0.4}); }
+    }
+
+    function labelFor(container,k){const b=$$(container+' .chip').find(x=>+x.dataset.k===k); return b?b.textContent:'-'}
+
+    // Копирование/ссылка
+    function copyTotal(){const t=`Итоговая стоимость: ${$('#totalLabel').textContent}`; safeCopy(t)}
+    function copyDetails(){
+      const lines=[`Направление: ${state.category}${state.subcat? ' — '+state.subcat:''}`,`База: ${fmt(state.base)} ₽ × ${state.qty} = ${fmt(state.base*state.qty)} ₽`];
+      const years=[]; for(let y=state.fromYear+1;y<=state.toYear;y++) years.push(y);
+      if(state.useInflation){const idx=compoundedIndex(inflation,years); lines.push(`Индексация: × ${idx.toFixed(3)}`)}
+      if(state.complexityK!==1) lines.push(`Сложность: × ${state.complexityK}`);
+      if(state.urgencyK!==1) lines.push(`Срочность: × ${state.urgencyK}`);
+      const plus=[]; if(state.margin) plus.push(`Маржа ${state.margin}%`); if(state.ip) plus.push('Передача прав +10%'); if(state.nda) plus.push('NDA +5%'); if(state.weekend) plus.push('Выходные +10%');
+      if(plus.length) lines.push('Надбавки: '+plus.join(', ')); if(state.discount) lines.push(`Скидка: ${state.discount}%`);
+      lines.push(`Округление: ${$('#roundRule').selectedOptions[0].textContent}`);
+      lines.push(`Итог: ${$('#totalLabel').textContent}`);
+      safeCopy(lines.join('\n'))
+    }
+    function shareLink(){const s=encodeURIComponent(JSON.stringify(state)); const base=location.href.split('?')[0]; const url=base+`?s=${s}`; safeCopy(url)}
+
+    // Сброс и тесты
+    function resetAll(){ localStorage.removeItem(STATE_KEY); Object.assign(state,{category:'Логотип',subcat:'',service:'Логотип',base:BASES['Логотип']||8000,qty:1,complexityK:1.5,urgencyK:1,margin:20,discount:0,ip:false,nda:false,weekend:false,useInflation:false,fromYear:2022,toYear:new Date().getFullYear(),roundRule:'50'}); syncUIFromState(); compute(true); showToast('Сброшено'); }
+    function runTests(){ const cases=[]; const ae=(a,b,eps=1e-9)=>Math.abs(a-b)<eps; const add=(n,p)=>cases.push({n,p}); add('roundTo 124→100 (50)', roundTo(124,'50')===100); add('roundTo 125→150 (50)', roundTo(125,'50')===150); add('roundTo 149→100 (100)', roundTo(149,'100')===100); add('roundTo 151→200 (100)', roundTo(151,'100')===200); add('roundTo 153→190 (.90)', roundTo(153,'.90')===190); add('roundTo 153→199 (.99)', roundTo(153,'.99')===199); add('index 10% one year', ae(compoundedIndex({2023:10},[2023]),1.1)); add('index 10% then 5%', ae(compoundedIndex({2023:10,2024:5},[2023,2024]),1.155)); const _b=state.base; applySubcat({name:'Тест подкатегория',price:4321}); add('applySubcat sets base', state.base===4321); state.base=_b; state.subcat=''; const list=document.createElement('div'); cases.forEach(c=>{const line=document.createElement('div'); line.textContent=(c.p?'PASS ':'FAIL ')+c.n; line.style.color=c.p?'#047857':'#b91c1c'; list.appendChild(line)}); openModal('Результаты тестов',list); }
+
+    // Entry
+    (function boot(){ loadState(); document.addEventListener('DOMContentLoaded',()=>{syncUIFromState(); bind(); applyDefaultBase(); compute(true); renderHistory()}); })();
+  </script>
+</body>
+</html>
